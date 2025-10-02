@@ -1,0 +1,19 @@
+reboot:
+  target:
+    device:
+      integration: miner
+
+restart_backend:
+  target:
+    device:
+      integration: miner
+
+curtail_wakeup:
+  target:
+    device:
+      integration: miner
+
+curtail_sleep:
+  target:
+    device:
+      integration: miner

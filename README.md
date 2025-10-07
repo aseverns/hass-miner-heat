@@ -57,17 +57,20 @@ Works great in coordination with [ESPHome](https://www.home-assistant.io/integra
 ## Temperature curtail automation
 
 After installing the integration, a built-in automation monitors the
-`sensor.econet_hpwh_ambient_temperature` entity every five minutes. If the
-temperature drops below **65°F**, mining resumes using the `curtail_wakeup`
-service. When the temperature rises above **75°F**, the `curtail_sleep`
-service stops mining. This automation is disabled on weekdays between **2 PM**
-
-and **9 PM** Eastern Time. During those hours the integration checks if your
-miner is active and will issue the `curtail_sleep` command to ensure it
-remains stopped.
+`sensor.living_room_temperature_2` entity every five minutes. If the
+temperature falls below the "Miner Heat SetPoint" number entity (defaults to
+**68°F**), mining resumes using the `curtail_wakeup` service and the Google
+Nest Thermostat (`climate.living_room`) is placed into fan-on mode to help push
+the heat. Once the room temperature meets or exceeds the set point, the miner
+is stopped via `curtail_sleep` and the thermostat fan mode is returned to
+`auto`. This automation is disabled on weekdays between **2 PM** and **9 PM**
+Eastern Time. During those hours the integration checks if your miner is
+active, switches the thermostat fan back to `auto`, and issues the
+`curtail_sleep` command to ensure it remains stopped.
 
 No additional configuration is required. Simply ensure the temperature sensor
-exists in Home Assistant with the entity ID listed above.
+and thermostat entities exist in Home Assistant with the entity IDs listed
+above.
 
 ## Installation
 

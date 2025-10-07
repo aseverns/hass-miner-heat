@@ -17,7 +17,7 @@ except ImportError:
     install_package(f"pyasic=={PYASIC_VERSION}")
     import pyasic
 
-from homeassistant.components.number import NumberEntityDescription, NumberDeviceClass
+from homeassistant.components.number import NumberDeviceClass, NumberEntityDescription
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
@@ -26,10 +26,11 @@ from homeassistant.helpers import device_registry
 from homeassistant.helpers import entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.restore_state import RestoreNumber
 from homeassistant.components.sensor import EntityCategory
-from homeassistant.const import UnitOfPower
+from homeassistant.const import UnitOfPower, UnitOfTemperature
 
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_HEAT_SETPOINT_F
 from .coordinator import MinerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,15 +55,74 @@ async def async_setup_entry(
     coordinator: MinerCoordinator = hass.data[DOMAIN][config_entry.entry_id]
 
     await coordinator.async_config_entry_first_refresh()
-    if coordinator.miner.supports_autotuning:
-        async_add_entities(
-            [
-                MinerPowerLimitNumber(
-                    coordinator=coordinator,
-                    entity_description=NUMBER_DESCRIPTION_KEY_MAP["power_limit"],
-                )
-            ]
+    entities: list[NumberEntity] = [
+        MinerHeatSetPointNumber(
+            coordinator=coordinator,
         )
+    ]
+
+    if coordinator.miner.supports_autotuning:
+        entities.append(
+            MinerPowerLimitNumber(
+                coordinator=coordinator,
+                entity_description=NUMBER_DESCRIPTION_KEY_MAP["power_limit"],
+            )
+        )
+
+    async_add_entities(entities)
+
+
+class MinerHeatSetPointNumber(CoordinatorEntity[MinerCoordinator], RestoreNumber):
+    """Temperature setpoint that governs miner curtailment."""
+
+    _attr_has_entity_name = False
+    _attr_name = "Miner Heat SetPoint"
+    _attr_native_max_value = 80.0
+    _attr_native_min_value = 60.0
+    _attr_native_step = 1.0
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: MinerCoordinator) -> None:
+        """Initialize the setpoint entity."""
+        super().__init__(coordinator=coordinator)
+        self._attr_unique_id = f"{self.coordinator.config_entry.entry_id}-heat_setpoint"
+        self._attr_native_value = DEFAULT_HEAT_SETPOINT_F
+
+    @property
+    def device_info(self) -> entity.DeviceInfo:
+        """Return device info."""
+        return entity.DeviceInfo(
+            identifiers={(DOMAIN, self.coordinator.data["mac"])},
+            connections={
+                ("ip", self.coordinator.data["ip"]),
+                (device_registry.CONNECTION_NETWORK_MAC, self.coordinator.data["mac"]),
+            },
+            configuration_url=f"http://{self.coordinator.data['ip']}",
+            manufacturer=self.coordinator.data["make"],
+            model=self.coordinator.data["model"],
+            sw_version=self.coordinator.data["fw_ver"],
+            name=f"{self.coordinator.config_entry.title}",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added."""
+        await super().async_added_to_hass()
+        if (last_state := await self.async_get_last_state()) is not None:
+            try:
+                self._attr_native_value = float(last_state.state)
+            except (TypeError, ValueError):
+                self._attr_native_value = DEFAULT_HEAT_SETPOINT_F
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Update the current value."""
+        self._attr_native_value = value
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Setpoint is available when coordinator is available."""
+        return self.coordinator.available
 
 
 class MinerPowerLimitNumber(CoordinatorEntity[MinerCoordinator], NumberEntity):

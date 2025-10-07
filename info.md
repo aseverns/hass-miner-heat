@@ -24,7 +24,7 @@
 ## Installation
 
 1. Click install.
-2. In the HA UI go to "Configuration" -> "Integrations" click "+" and search for "miner".
+2. In the HA UI go to "Configuration" -> "Integrations" click "+" and search for "Miner HVAC".
 
 {% endif %}
 

@@ -29,8 +29,8 @@ from homeassistant.helpers import entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from custom_components.miner import DOMAIN
-from custom_components.miner import MinerCoordinator
+from custom_components.miner_hvac import DOMAIN
+from custom_components.miner_hvac import MinerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

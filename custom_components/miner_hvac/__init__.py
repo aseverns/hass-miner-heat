@@ -1,4 +1,4 @@
-"""The Miner integration."""
+"""The Miner HVAC integration."""
 from __future__ import annotations
 
 
@@ -11,19 +11,24 @@ except ImportError:
     install_package(f"pyasic=={PYASIC_VERSION}")
     import pyasic
 
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.event import async_track_time_interval
-from datetime import timedelta, datetime, time
-from zoneinfo import ZoneInfo
 
 from .const import (
-    AMBIENT_TEMP_RESUME_F,
-    AMBIENT_TEMP_STOP_F,
     CONF_IP,
+    DEFAULT_HEAT_SETPOINT_F,
     DOMAIN,
+    HEAT_SETPOINT_ENTITY_ID,
+    LIVING_ROOM_TEMPERATURE_SENSOR,
+    LIVING_ROOM_THERMOSTAT,
+    NEST_FAN_MODE_AUTO,
+    NEST_FAN_MODE_ON,
 )
 from .coordinator import MinerCoordinator
 from .services import async_setup_services
@@ -60,21 +65,65 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         if miner is None:
             return
 
+        miner_is_running = bool(m_coordinator.data.get("is_mining"))
+
+        async def _set_fan_mode(target_mode: str) -> None:
+            thermostat_state = hass.states.get(LIVING_ROOM_THERMOSTAT)
+            if (
+                thermostat_state
+                and thermostat_state.attributes.get("fan_mode") == target_mode
+            ):
+                return
+            await hass.services.async_call(
+                "climate",
+                "set_fan_mode",
+                {
+                    "entity_id": LIVING_ROOM_THERMOSTAT,
+                    "fan_mode": target_mode,
+                },
+                blocking=True,
+            )
+
         if eastern.weekday() < 5 and time(14, 0) <= eastern.time() < time(21, 0):
-            if m_coordinator.data.get("is_mining"):
+            if miner_is_running:
                 await miner.stop_mining()
+                await _set_fan_mode(NEST_FAN_MODE_ON)
+            else:
+                await _set_fan_mode(NEST_FAN_MODE_AUTO)
             return
-        state = hass.states.get("sensor.econet_hpwh_ambient_temperature")
+
+        state = hass.states.get(LIVING_ROOM_TEMPERATURE_SENSOR)
         if not state or state.state in ("unknown", "unavailable"):
+            if miner_is_running:
+                await _set_fan_mode(NEST_FAN_MODE_ON)
             return
         try:
             ambient = float(state.state)
         except ValueError:
+            if miner_is_running:
+                await _set_fan_mode(NEST_FAN_MODE_ON)
             return
-        if ambient < AMBIENT_TEMP_RESUME_F:
+
+        setpoint_state = hass.states.get(HEAT_SETPOINT_ENTITY_ID)
+        try:
+            setpoint = (
+                float(setpoint_state.state)
+                if setpoint_state
+                and setpoint_state.state not in ("unknown", "unavailable")
+                else DEFAULT_HEAT_SETPOINT_F
+            )
+        except (TypeError, ValueError):
+            setpoint = DEFAULT_HEAT_SETPOINT_F
+
+        if ambient < setpoint:
             await miner.resume_mining()
-        elif ambient > AMBIENT_TEMP_STOP_F:
+            await _set_fan_mode(NEST_FAN_MODE_ON)
+        else:
             await miner.stop_mining()
+            if miner_is_running:
+                await _set_fan_mode(NEST_FAN_MODE_ON)
+            else:
+                await _set_fan_mode(NEST_FAN_MODE_AUTO)
 
     unsub = async_track_time_interval(hass, _curtail_check, timedelta(minutes=5))
     config_entry.async_on_unload(unsub)

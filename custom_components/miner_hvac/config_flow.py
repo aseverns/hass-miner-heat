@@ -55,7 +55,7 @@ async def _async_has_devices(hass: HomeAssistant) -> bool:
     return False
 
 
-register_discovery_flow(DOMAIN, "miner", _async_has_devices)
+register_discovery_flow(DOMAIN, "Miner HVAC", _async_has_devices)
 
 
 async def validate_ip_input(

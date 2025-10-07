@@ -1,4 +1,4 @@
-"""The Miner component services."""
+"""The Miner HVAC component services."""
 from __future__ import annotations
 
 import asyncio

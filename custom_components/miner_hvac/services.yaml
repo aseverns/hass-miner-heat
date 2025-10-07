@@ -1,19 +1,19 @@
 reboot:
   target:
     device:
-      integration: miner
+      integration: miner_hvac
 
 restart_backend:
   target:
     device:
-      integration: miner
+      integration: miner_hvac
 
 curtail_wakeup:
   target:
     device:
-      integration: miner
+      integration: miner_hvac
 
 curtail_sleep:
   target:
     device:
-      integration: miner
+      integration: miner_hvac

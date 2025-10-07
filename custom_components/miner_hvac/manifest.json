@@ -1,6 +1,6 @@
 {
-  "domain": "miner",
-  "name": "Miner",
+  "domain": "miner_hvac",
+  "name": "Miner HVAC",
   "codeowners": ["@Schnitzel"],
   "config_flow": true,
   "dependencies": ["network"],
